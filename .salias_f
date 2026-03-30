@@ -1,0 +1,46 @@
+# ComfyUI MCP Server - Project aliases and functions
+# All commands defined here, sourced by .salias
+# Run 'help' to see all available commands
+
+# ── Environment ──
+set -gx ENV_NAME '.venv'
+set -gx PYTHON_VERSION '3.12'
+set -gx MCP_PORT '9000'
+set -gx COMFYUI_PORT '8188'
+
+# ── Python Environment ──
+alias rmenv='rm -rf .envrc $ENV_NAME uv.lock; exit'
+alias mkenv='mkuv $ENV_NAME $PYTHON_VERSION'
+function install
+   clear
+   uv pip install pip
+   uv pip install -r requirements.txt
+end
+
+# ── Help ──
+function help
+    clear
+    sed "s/PYTHON_VERSION/$PYTHON_VERSION/;s/MCP_PORT/$MCP_PORT/;s/COMFYUI_PORT/$COMFYUI_PORT/" /home/dev/comfy/comfyui-mcp-server/.salias_help.txt
+end
+
+# ── Server ──
+function run
+    clear
+    python server.py
+end
+
+function test
+    clear
+    python test_client.py $argv
+end
+
+function testp
+    clear
+    python test_client.py -p "$argv"
+end
+
+# ── Status ──
+function status
+    echo "ComfyUI: "(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:$COMFYUI_PORT/system_stats 2>/dev/null || echo "down")
+    echo "MCP Server: "(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:$MCP_PORT/mcp 2>/dev/null || echo "down")
+end

@@ -1,0 +1,9 @@
+PYTHON ENVIRONMENT (PYTHON_VERSION) - rmenv, mkenv, install
+
+SERVER
+  run               Start the MCP server on port MCP_PORT
+  status            Check if ComfyUI and MCP server are running
+
+TESTING
+  test              Run test client with default prompt
+  testp <prompt>    Run test client with custom prompt
