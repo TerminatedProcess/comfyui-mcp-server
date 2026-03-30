@@ -29,6 +29,16 @@ function run
     python server.py
 end
 
+function stop
+    set -l pid (lsof -ti tcp:$MCP_PORT)
+    if test -n "$pid"
+        kill $pid
+        echo "MCP server stopped (pid $pid)"
+    else
+        echo "MCP server not running on port $MCP_PORT"
+    end
+end
+
 function test
     clear
     python test_client.py $argv
