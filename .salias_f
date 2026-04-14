@@ -7,6 +7,8 @@ set -gx ENV_NAME '.venv'
 set -gx PYTHON_VERSION '3.12'
 set -gx MCP_PORT '9000'
 set -gx COMFYUI_PORT '8188'
+set -gx COMFYUI_OUTPUT_ROOT '/home/dev/comfy/ComfyUI/output'
+set -gx PULL_PORT '9100'
 
 # ── Python Environment ──
 alias rmenv='rm -rf .envrc $ENV_NAME uv.lock; exit'
@@ -15,12 +17,13 @@ function install
    clear
    uv pip install pip
    uv pip install -r requirements.txt
+   uv pip install -r comfypull/requirements.txt
 end
 
 # ── Help ──
 function help
     clear
-    sed "s/PYTHON_VERSION/$PYTHON_VERSION/;s/MCP_PORT/$MCP_PORT/;s/COMFYUI_PORT/$COMFYUI_PORT/" /home/dev/comfy/comfyui-mcp-server/.salias_help.txt
+    sed "s/PYTHON_VERSION/$PYTHON_VERSION/;s/MCP_PORT/$MCP_PORT/;s/COMFYUI_PORT/$COMFYUI_PORT/;s/PULL_PORT/$PULL_PORT/" /home/dev/comfy/comfyui-mcp-server/.salias_help.txt
 end
 
 # ── Server ──
@@ -30,27 +33,46 @@ function run
 end
 
 function stop
-    set -l pid (lsof -ti tcp:$MCP_PORT)
-    if test -n "$pid"
-        kill $pid
-        echo "MCP server stopped (pid $pid)"
+    set -l mcp_pid (lsof -ti tcp:$MCP_PORT)
+    if test -n "$mcp_pid"
+        kill $mcp_pid
+        echo "MCP server stopped (pid $mcp_pid)"
     else
         echo "MCP server not running on port $MCP_PORT"
+    end
+    set -l pull_pid (lsof -ti tcp:$PULL_PORT)
+    if test -n "$pull_pid"
+        kill $pull_pid
+        echo "ComfyPull stopped (pid $pull_pid)"
+    else
+        echo "ComfyPull not running on port $PULL_PORT"
     end
 end
 
 function test
     clear
-    python test_client.py $argv
+    python test_client.py -p "$argv"
 end
 
-function testp
+# ── ComfyPull ──
+function pull
     clear
-    python test_client.py -p "$argv"
+    streamlit run comfypull/app.py --server.port $PULL_PORT --server.headless true
+end
+
+function pullstop
+    set -l pid (lsof -ti tcp:$PULL_PORT)
+    if test -n "$pid"
+        kill $pid
+        echo "ComfyPull stopped (pid $pid)"
+    else
+        echo "ComfyPull not running on port $PULL_PORT"
+    end
 end
 
 # ── Status ──
 function status
     echo "ComfyUI: "(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:$COMFYUI_PORT/system_stats 2>/dev/null || echo "down")
     echo "MCP Server: "(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:$MCP_PORT/mcp 2>/dev/null || echo "down")
+    echo "ComfyPull: "(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:$PULL_PORT 2>/dev/null || echo "down")
 end

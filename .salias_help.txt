@@ -6,5 +6,8 @@ SERVER
   status            Check if ComfyUI and MCP server are running
 
 TESTING
-  test              Run test client with default prompt
-  testp <prompt>    Run test client with custom prompt
+  test <prompt>     Run test client with prompt
+
+COMFYPULL
+  pull              Start ComfyPull web UI on port PULL_PORT
+  pullstop          Stop ComfyPull
