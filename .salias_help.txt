@@ -11,3 +11,7 @@ TESTING
 COMFYPULL
   pull              Start ComfyPull web UI on port PULL_PORT
   pullstop          Stop ComfyPull
+
+COMFYGEN
+  gen               Start ComfyGen image generator on port GEN_PORT
+  genstop           Stop ComfyGen

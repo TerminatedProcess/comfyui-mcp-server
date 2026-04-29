@@ -9,6 +9,7 @@ set -gx MCP_PORT '9000'
 set -gx COMFYUI_PORT '8188'
 set -gx COMFYUI_OUTPUT_ROOT '/home/dev/comfy/ComfyUI/output'
 set -gx PULL_PORT '9100'
+set -gx GEN_PORT '9200'
 
 # ── Python Environment ──
 alias rmenv='rm -rf .envrc $ENV_NAME uv.lock; exit'
@@ -18,12 +19,13 @@ function install
    uv pip install pip
    uv pip install -r requirements.txt
    uv pip install -r comfypull/requirements.txt
+   uv pip install -r comfygen/requirements.txt
 end
 
 # ── Help ──
 function help
     clear
-    sed "s/PYTHON_VERSION/$PYTHON_VERSION/;s/MCP_PORT/$MCP_PORT/;s/COMFYUI_PORT/$COMFYUI_PORT/;s/PULL_PORT/$PULL_PORT/" /home/dev/comfy/comfyui-mcp-server/.salias_help.txt
+    sed "s/PYTHON_VERSION/$PYTHON_VERSION/;s/MCP_PORT/$MCP_PORT/;s/COMFYUI_PORT/$COMFYUI_PORT/;s/PULL_PORT/$PULL_PORT/;s/GEN_PORT/$GEN_PORT/" /home/dev/comfy/comfyui-mcp-server/.salias_help.txt
 end
 
 # ── Server ──
@@ -46,6 +48,13 @@ function stop
         echo "ComfyPull stopped (pid $pull_pid)"
     else
         echo "ComfyPull not running on port $PULL_PORT"
+    end
+    set -l gen_pid (lsof -ti tcp:$GEN_PORT)
+    if test -n "$gen_pid"
+        kill $gen_pid
+        echo "ComfyGen stopped (pid $gen_pid)"
+    else
+        echo "ComfyGen not running on port $GEN_PORT"
     end
 end
 
@@ -70,9 +79,26 @@ function pullstop
     end
 end
 
+# ── ComfyGen ──
+function gen
+    clear
+    python comfygen/app.py
+end
+
+function genstop
+    set -l pid (lsof -ti tcp:$GEN_PORT)
+    if test -n "$pid"
+        kill $pid
+        echo "ComfyGen stopped (pid $pid)"
+    else
+        echo "ComfyGen not running on port $GEN_PORT"
+    end
+end
+
 # ── Status ──
 function status
     echo "ComfyUI: "(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:$COMFYUI_PORT/system_stats 2>/dev/null || echo "down")
     echo "MCP Server: "(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:$MCP_PORT/mcp 2>/dev/null || echo "down")
     echo "ComfyPull: "(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:$PULL_PORT 2>/dev/null || echo "down")
+    echo "ComfyGen:  "(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:$GEN_PORT 2>/dev/null || echo "down")
 end

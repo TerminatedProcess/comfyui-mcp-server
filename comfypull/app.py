@@ -238,4 +238,4 @@ if st.button("Pull", type="primary", use_container_width=True):
         col2.metric("Missing", missing)
         col3.metric("Errors", errors)
 
-        st.dataframe(results, use_container_width=True, hide_index=True)
+        st.dataframe(results, use_container_width=True, hide_index=True, height=800)
