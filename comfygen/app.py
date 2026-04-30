@@ -81,6 +81,39 @@ def get_all_model_names():
     return get_comfy_models("UNETLoader", "unet_name") + get_comfy_models("CheckpointLoaderSimple", "ckpt_name")
 
 
+FAMILY_TO_HUB_BASES = {
+    "Z-IMAGE": ["zimageturbo", "z-image", "zimagebase", "qwen", "qwen3"],
+    "FLUX": ["flux.1 d", "flux.1 s", "flux.2 d", "flux.2 klein 4b", "flux.2 klein 9b"],
+    "SDXL": ["sdxl 1.0", "pony", "illustrious", "noobai"],
+    "SD1.5": ["sd 1.5"],
+    "ALL": None,
+    "OTHER": None,
+}
+
+
+def get_filtered_loras(family="ALL"):
+    """Get LoRAs available in ComfyUI, filtered by model family via hub DB."""
+    comfy_loras = get_comfy_models("LoraLoader", "lora_name")
+    if not comfy_loras:
+        return []
+    if family == "ALL" or family not in FAMILY_TO_HUB_BASES or FAMILY_TO_HUB_BASES[family] is None:
+        return sorted(comfy_loras)
+
+    hub_bases = FAMILY_TO_HUB_BASES[family]
+    try:
+        with sqlite3.connect(HUBMODELS_DB) as conn:
+            placeholders = ",".join("?" * len(hub_bases))
+            cursor = conn.cursor()
+            cursor.execute(
+                f"SELECT filename FROM models WHERE model_type='lora' AND base_model IN ({placeholders}) AND deleted=0",
+                hub_bases,
+            )
+            hub_filenames = {row[0] for row in cursor.fetchall()}
+        return sorted([l for l in comfy_loras if l in hub_filenames])
+    except Exception:
+        return sorted(comfy_loras)
+
+
 # ── Hub Symlink ──
 
 def symlink_from_hub(blake3_hash, filename, subfolder):
@@ -210,7 +243,7 @@ def pull_from_invoke():
         gr.update(value=prompt), gr.update(value=neg_prompt),
         gr.update(value=width), gr.update(value=height),
         gr.update(value=steps), gr.update(value=cfg),
-        gr.update(value=seed), gr.update(value=random_seed),
+        gr.update(value=seed), gr.update(value=True),
         gr.update(value=sampler), gr.update(value=scheduler),
         gr.update(choices=all_models, value=comfy_model),
         gr.update(value="\n".join(lora_lines) if lora_lines else ""),
@@ -479,8 +512,13 @@ def _generate(model_name, clip_model, vae_model, prompt, neg, loras, w, h, steps
     preset = PRESETS.get(family, PRESETS["OTHER"])
 
     if is_unet:
-        clip = clip_model or "qwen_3_4b.safetensors"
-        vae = vae_model or "ae.safetensors"
+        # Z-Image family requires specific CLIP/VAE — override user selection
+        valid_clips = get_comfy_models("CLIPLoader", "clip_name")
+        valid_vaes = get_comfy_models("VAELoader", "vae_name")
+        preferred_clips = ["qwen_3_4b.safetensors", "qwen_3_4b_fp8_mixed.safetensors"]
+        preferred_vaes = ["ae.safetensors"]
+        clip = next((c for c in preferred_clips if c in valid_clips), clip_model or "qwen_3_4b.safetensors")
+        vae = next((v for v in preferred_vaes if v in valid_vaes), vae_model or "ae.safetensors")
         wf = build_unet_workflow(model_name, clip, vae, prompt, neg, loras, w, h, steps, cfg, sampler, sched, seed, prefix, preset[4] or "lumina2")
     else:
         wf = build_ckpt_workflow(model_name, prompt, neg, loras, w, h, steps, cfg, sampler, sched, seed, prefix, vae_model or None)
@@ -558,8 +596,14 @@ with gr.Blocks(title="ComfyGen") as app:
             gr.Markdown("### Generation")
             family_filter = gr.Radio(choices=list(FAMILIES.keys()), value="ALL", label="Model Family", interactive=True)
             model_dd = gr.Dropdown(label="Model", choices=[], interactive=True)
-            lora_box = gr.Textbox(label="LoRAs (one per line: filename.safetensors:weight)", lines=2,
-                                  placeholder="add-detail-xl.safetensors:0.75\nDetailedEyes_V3.safetensors:1.0", elem_id="lora-box")
+            gr.Markdown("### LoRAs")
+            with gr.Row():
+                lora_dd = gr.Dropdown(label="Add LoRA", choices=[], interactive=True, scale=3, allow_custom_value=True)
+                lora_weight = gr.Slider(label="Weight", minimum=0, maximum=2, value=0.75, step=0.05, scale=1)
+            with gr.Row():
+                lora_add_btn = gr.Button("Add", size="sm", scale=0)
+                lora_clear_btn = gr.Button("Clear All", size="sm", scale=0)
+            lora_box = gr.Textbox(label="Active LoRAs", lines=2, interactive=True, elem_id="lora-box")
             with gr.Accordion("Advanced", open=False):
                 with gr.Row():
                     sampler_dd = gr.Dropdown(label="Sampler", choices=["euler", "euler_cfg_pp", "euler_ancestral", "dpmpp_2m",
@@ -610,21 +654,51 @@ with gr.Blocks(title="ComfyGen") as app:
     def on_family_change(family):
         models = get_all_model_names() if family == "ALL" else [m for m in get_all_model_names() if classify_model(m) == family]
         preset = PRESETS.get(family, PRESETS["OTHER"])
+        loras = get_filtered_loras(family)
         return (gr.update(choices=models, value=models[0] if models else None),
-                gr.update(value=preset[0]), gr.update(value=preset[1]), gr.update(value=preset[2]), gr.update(value=preset[3]))
+                gr.update(value=preset[0]), gr.update(value=preset[1]), gr.update(value=preset[2]), gr.update(value=preset[3]),
+                gr.update(choices=loras, value=None))
 
-    family_filter.change(fn=on_family_change, inputs=[family_filter], outputs=[model_dd, steps_sl, cfg_sl, sampler_dd, scheduler_dd])
+    family_filter.change(fn=on_family_change, inputs=[family_filter],
+        outputs=[model_dd, steps_sl, cfg_sl, sampler_dd, scheduler_dd, lora_dd])
+
+    def add_lora(lora_name, weight, current_loras):
+        if not lora_name:
+            return gr.update(), gr.update()
+        new_line = f"{lora_name}:{weight}"
+        if current_loras and current_loras.strip():
+            if lora_name in current_loras:
+                return gr.update(), current_loras
+            return gr.update(value=None), current_loras.strip() + "\n" + new_line
+        return gr.update(value=None), new_line
+
+    lora_add_btn.click(fn=add_lora, inputs=[lora_dd, lora_weight, lora_box], outputs=[lora_dd, lora_box])
+
+    def clear_loras():
+        return ""
+
+    lora_clear_btn.click(fn=clear_loras, outputs=[lora_box])
 
     def on_refresh():
         models = get_all_model_names()
         clips = get_comfy_models("CLIPLoader", "clip_name")
         vaes = get_comfy_models("VAELoader", "vae_name")
+        loras = get_filtered_loras("ALL")
+        clip_default = _pick_default(clips, ["qwen_3_4b.safetensors", "qwen_3_4b_fp8_mixed.safetensors"])
+        vae_default = _pick_default(vaes, ["ae.safetensors"])
         return (gr.update(choices=models, value=models[0] if models else None),
-                gr.update(choices=clips, value=clips[0] if clips else None),
-                gr.update(choices=vaes, value=vaes[0] if vaes else None),
+                gr.update(choices=clips, value=clip_default),
+                gr.update(choices=vaes, value=vae_default),
+                gr.update(choices=loras, value=None),
                 f"{len(models)} models loaded")
 
-    refresh_btn.click(fn=on_refresh, outputs=[model_dd, clip_dd, vae_dd, status_box])
+    refresh_btn.click(fn=on_refresh, outputs=[model_dd, clip_dd, vae_dd, lora_dd, status_box])
+
+    def _pick_default(items, preferred):
+        for p in preferred:
+            if p in items:
+                return p
+        return items[0] if items else None
 
     def on_load():
         for _ in range(15):
@@ -634,12 +708,16 @@ with gr.Blocks(title="ComfyGen") as app:
         models = get_all_model_names() or []
         clips = get_comfy_models("CLIPLoader", "clip_name") or []
         vaes = get_comfy_models("VAELoader", "vae_name") or []
+        clip_default = _pick_default(clips, ["qwen_3_4b.safetensors", "qwen_3_4b_fp8_mixed.safetensors"])
+        vae_default = _pick_default(vaes, ["ae.safetensors"])
+        loras = get_filtered_loras("ALL")
         return (gr.update(choices=models, value=models[0] if models else None),
-                gr.update(choices=clips, value=clips[0] if clips else None),
-                gr.update(choices=vaes, value=vaes[0] if vaes else None),
+                gr.update(choices=clips, value=clip_default),
+                gr.update(choices=vaes, value=vae_default),
+                gr.update(choices=loras, value=None),
                 f"{len(models)} models loaded", render_gallery())
 
-    app.load(fn=on_load, outputs=[model_dd, clip_dd, vae_dd, status_box, gallery_html])
+    app.load(fn=on_load, outputs=[model_dd, clip_dd, vae_dd, lora_dd, status_box, gallery_html])
 
 
 if __name__ == "__main__":
