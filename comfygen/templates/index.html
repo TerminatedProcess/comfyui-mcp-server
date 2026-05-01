@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ComfyGen</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="app">
+    <!-- Header -->
+    <div class="header">
+        <h1>ComfyGen</h1>
+        <div id="status-dot" class="dot"></div>
+        <div id="status-text" class="status">Connecting...</div>
+        <button class="btn btn-sm" onclick="refresh()">Refresh</button>
+    </div>
+
+    <div class="main">
+        <!-- Left Panel: Settings -->
+        <div class="panel panel-left">
+            <button class="btn" onclick="pullFromInvoke()" style="width:100%">Pull from InvokeAI</button>
+
+            <div class="section">
+                <div class="section-title">Prompt</div>
+                <div class="field">
+                    <textarea id="prompt" rows="3" placeholder="Describe your image..."></textarea>
+                </div>
+                <div class="field">
+                    <label>Negative</label>
+                    <input type="text" id="neg-prompt" value="text, watermark, blurry">
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="section-title">Image</div>
+                <div class="row">
+                    <div class="field">
+                        <label>Width</label>
+                        <input type="number" id="width" value="1024" min="256" max="2048" step="64">
+                    </div>
+                    <div class="field">
+                        <label>Height</label>
+                        <input type="number" id="height" value="1024" min="256" max="2048" step="64">
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="field" style="flex:2">
+                        <label>Seed</label>
+                        <input type="number" id="seed" value="42">
+                    </div>
+                    <div class="field" style="flex:0 0 auto; align-self: flex-end;">
+                        <label style="display:flex; align-items:center; gap:4px; cursor:pointer">
+                            <input type="checkbox" id="random-seed" checked> Rand
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="section-title">Model</div>
+                <div class="field">
+                    <label>Family</label>
+                    <div id="family-pills" class="family-pills"></div>
+                </div>
+                <div class="field">
+                    <label>Model</label>
+                    <select id="model"></select>
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="section-title">LoRAs</div>
+                <div class="row">
+                    <div class="field" style="flex:3">
+                        <select id="lora-select"><option value="">Select LoRA...</option></select>
+                    </div>
+                    <div class="field" style="flex:1">
+                        <input type="number" id="lora-weight" value="0.75" min="0" max="2" step="0.05">
+                    </div>
+                    <button class="btn btn-sm" onclick="addLora()">+</button>
+                </div>
+                <div id="lora-list" class="lora-list"></div>
+            </div>
+
+            <details class="accordion">
+                <summary>Advanced</summary>
+                <div class="accordion-body">
+                    <div class="row">
+                        <div class="field">
+                            <label>Sampler</label>
+                            <select id="sampler"></select>
+                        </div>
+                        <div class="field">
+                            <label>Scheduler</label>
+                            <select id="scheduler"></select>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="field">
+                            <label>Steps</label>
+                            <input type="number" id="steps" value="8" min="1" max="100">
+                        </div>
+                        <div class="field">
+                            <label>CFG</label>
+                            <input type="number" id="cfg" value="1" min="0" max="30" step="0.5">
+                        </div>
+                    </div>
+                    <div class="field">
+                        <label>CLIP</label>
+                        <select id="clip"></select>
+                    </div>
+                    <div class="field">
+                        <label>VAE</label>
+                        <select id="vae"></select>
+                    </div>
+                </div>
+            </details>
+
+            <button id="generate-btn" class="btn btn-primary" onclick="generate()">Generate</button>
+        </div>
+
+        <!-- Center Panel: Viewer -->
+        <div class="panel panel-center">
+            <div id="viewer" class="viewer">
+                <div class="viewer-empty">Generate an image or select from gallery</div>
+            </div>
+            <div id="viewer-info" class="viewer-info" style="display:none"></div>
+        </div>
+
+        <!-- Right Panel: Gallery -->
+        <div class="panel panel-right">
+            <div class="gallery-header">
+                <h3>Gallery</h3>
+                <span id="sel-count" class="gallery-sel-count"></span>
+            </div>
+            <div class="gallery-actions">
+                <button class="btn btn-sm btn-danger" onclick="deleteSelected()" title="Delete selected (Del)">Delete</button>
+                <button class="btn btn-sm" onclick="loadGallery()" title="Refresh gallery">Refresh</button>
+            </div>
+            <div id="gallery" class="gallery-grid" tabindex="0"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Fullscreen overlay -->
+<div id="fullscreen" class="fullscreen" style="display:none" onclick="closeFullscreen()"></div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

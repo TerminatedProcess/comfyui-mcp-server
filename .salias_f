@@ -82,7 +82,7 @@ end
 # ── ComfyGen ──
 function gen
     clear
-    python comfygen/app.py
+    python -m comfygen.app
 end
 
 function genstop
