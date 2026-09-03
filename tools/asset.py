@@ -3,7 +3,7 @@
 import logging
 from typing import Optional
 
-from mcp.server.fastmcp import FastMCP, Image as FastMCPImage
+from mcp.server.mcpserver import MCPServer, Image as MCPImage
 from asset_processor import (
     encode_preview_for_mcp,
     estimate_response_chars,
@@ -15,7 +15,7 @@ logger = logging.getLogger("MCP_Server")
 
 
 def register_asset_tools(
-    mcp: FastMCP,
+    mcp: MCPServer,
     asset_registry
 ):
     """Register asset viewing tools with the MCP server"""
@@ -119,9 +119,9 @@ def register_asset_tools(
                 f"response_est={estimate_response_chars(encoded.b64_chars)}chars"
             )
             
-            # Use FastMCP.Image for inline display (not dict)
-            # FastMCP.Image takes raw bytes and format string
-            return FastMCPImage(data=encoded.raw_bytes, format="webp")
+            # Use MCPServer.Image for inline display (not dict)
+            # MCPServer.Image takes raw bytes and format string
+            return MCPImage(data=encoded.raw_bytes, format="webp")
             
         except ValueError as e:
             # Image too large or processing failed - REFUSE-INLINE (non-lethal failure)

@@ -6,7 +6,7 @@ import logging
 import random
 from typing import Any, Dict, Optional
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from managers.workflow_manager import AUDIO_OUTPUT_KEYS, VIDEO_OUTPUT_KEYS
 from models.workflow import WorkflowToolDefinition
 from tools.helpers import register_and_build_response
@@ -15,7 +15,7 @@ logger = logging.getLogger("MCP_Server")
 
 
 def register_workflow_generation_tools(
-    mcp: FastMCP,
+    mcp: MCPServer,
     workflow_manager,
     comfyui_client,
     defaults_manager,
@@ -152,7 +152,7 @@ def register_workflow_generation_tools(
         
         for param in definition.parameters.values():
             # For numeric types, use Any to allow string coercion from JSON-RPC
-            # FastMCP/Pydantic validation is strict, so we accept Any and validate/coerce ourselves
+            # MCPServer/Pydantic validation is strict, so we accept Any and validate/coerce ourselves
             if param.annotation in (int, float):
                 # Use Any to bypass strict type checking, we'll coerce in the function
                 annotation_type = Any
@@ -337,7 +337,7 @@ def _update_seed(workflow: dict, seed: Optional[int]) -> dict:
 
 
 def register_regenerate_tool(
-    mcp: FastMCP,
+    mcp: MCPServer,
     comfyui_client,
     asset_registry
 ):

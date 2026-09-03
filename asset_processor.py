@@ -131,7 +131,7 @@ class EncodedImage:
     size_px: Tuple[int, int]  # Final dimensions
     bytes_len: int  # Raw byte size before base64
     b64_chars: int  # Base64 character count (what matters for serialized response)
-    raw_bytes: bytes  # Raw encoded bytes (for FastMCP.Image)
+    raw_bytes: bytes  # Raw encoded bytes (for MCPServer.Image)
 
 
 def get_cache_key(asset_id: str, max_dim: int, quality: int) -> str:
@@ -357,7 +357,7 @@ def encode_preview_for_mcp(
         size_px=final_dim,
         bytes_len=len(final_encoded),
         b64_chars=b64_chars,
-        raw_bytes=final_encoded,  # Raw bytes for FastMCP.Image
+        raw_bytes=final_encoded,  # Raw bytes for MCPServer.Image
     )
     
     # Cache result

@@ -10,7 +10,7 @@ from typing import AsyncIterator
 
 import requests
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 from comfyui_client import ComfyUIClient
 from managers.asset_registry import AssetRegistry
@@ -33,6 +33,10 @@ WORKFLOW_DIR = Path(os.getenv("COMFY_MCP_WORKFLOW_DIR", str(Path(__file__).paren
 
 # Asset registry configuration
 ASSET_TTL_HOURS = int(os.getenv("COMFY_MCP_ASSET_TTL_HOURS", "24"))
+
+# streamable-http listen address (port 9000 kept for consistency with previous versions)
+HTTP_HOST = os.getenv("COMFY_MCP_HOST", "127.0.0.1")
+HTTP_PORT = int(os.getenv("COMFY_MCP_PORT", "9000"))
 
 # ComfyUI connection configuration
 COMFYUI_URL = os.getenv("COMFYUI_URL", "http://localhost:8188")
@@ -168,7 +172,7 @@ class AppContext:
 
 # Lifespan management (placeholder for future context support)
 @asynccontextmanager
-async def app_lifespan(server: FastMCP) -> AsyncIterator[AppContext]:
+async def app_lifespan(server: MCPServer) -> AsyncIterator[AppContext]:
     """Manage application lifecycle"""
     logger.info("Starting MCP server lifecycle...")
     try:
@@ -180,14 +184,12 @@ async def app_lifespan(server: FastMCP) -> AsyncIterator[AppContext]:
         logger.info("Shutting down MCP server")
 
 
-# Initialize FastMCP with lifespan and port configuration
-# Using port 9000 for consistency with previous version
-# Enable stateless_http to avoid requiring session management
-mcp = FastMCP(
+# Initialize MCPServer with lifespan.
+# Note: in mcp 2.x the transport options (port, stateless_http) are no longer
+# constructor arguments -- they are passed to run() instead. See __main__ below.
+mcp = MCPServer(
     "ComfyUI_MCP_Server",
     lifespan=app_lifespan,
-    port=9000,
-    stateless_http=True
 )
 
 # Register all MCP tools
@@ -225,12 +227,18 @@ if __name__ == "__main__":
         print("[+] Server Ready".center(70))
         print("=" * 70)
         print(f"  Transport: streamable-http")
-        print(f"  Endpoint: http://127.0.0.1:9000/mcp")
+        print(f"  Endpoint: http://{HTTP_HOST}:{HTTP_PORT}/mcp")
         print(f"[+] ComfyUI verified at: {COMFYUI_URL}")
         print("=" * 70 + "\n")
-        logger.info("Starting MCP server with streamable-http transport on http://127.0.0.1:9000/mcp")
+        logger.info(f"Starting MCP server with streamable-http transport on http://{HTTP_HOST}:{HTTP_PORT}/mcp")
         logger.info(f"ComfyUI verified at: {COMFYUI_URL}")
         try:
-            mcp.run(transport="streamable-http")
+            # mcp 2.x: transport options are run() kwargs, not constructor args.
+            mcp.run(
+                transport="streamable-http",
+                host=HTTP_HOST,
+                port=HTTP_PORT,
+                stateless_http=True,
+            )
         except KeyboardInterrupt:
             print("\n[*] Server stopped.")

@@ -1,6 +1,11 @@
 # Core dependencies
 requests>=2.31.0
-mcp>=0.9.0
+# Upper bound is deliberate. This code targets the mcp 2.x API
+# (mcp.server.mcpserver.MCPServer). The old unbounded `mcp>=0.9.0` silently
+# resolved to 2.x after the FastMCP -> MCPServer rename, which broke the server
+# on import and left it crash-looping under systemd -- and every `rmenv/mkenv`
+# rebuild reproduced it, because nothing pinned the major.
+mcp>=2.0,<3
 
 # Image processing (required for view_image tool)
 Pillow>=10.0.0
